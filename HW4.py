@@ -2,23 +2,22 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 
-def sarsa_agent(amap,
-gamma,
+def sarsa_agent(gamma,
 alpha,
 epsilon,
 n_episodes,
 seed):
 
-    input_string=amap
+
     N_episodes=n_episodes
     random_seed=seed
     #env = gym.make('FrozenLake-v0')
     #input_string='SFFFHFFFFFFFFFFG'
-    map=np.asarray(input_string,dtype='c')
-    map=map.reshape(int(np.sqrt(len(input_string))),int(np.sqrt(len(input_string))))
-    print(map.shape)
+    # map=np.asarray(input_string,dtype='c')
+    # map=map.reshape(int(np.sqrt(len(input_string))),int(np.sqrt(len(input_string))))
+    # print(map.shape)
 
-    env = gym.make('FrozenLake-v0', desc=map).unwrapped
+    env = gym.make('Taxi-v2').unwrapped
     #env.reset()
     #env = gym.make('CartPole-v0')
     print('env.action_space',env.action_space)
@@ -33,8 +32,8 @@ seed):
 
     Q_table=np.zeros((env.observation_space.n,env.action_space.n))
 
-    np.random.seed(random_seed)
-    env.seed(random_seed)
+    #np.random.seed(random_seed)
+    #env.seed(random_seed)
     for i_episode in range(N_episodes):
         observation = env.reset()
         if np.random.rand()<=epsilon:
@@ -46,8 +45,8 @@ seed):
             action = np.argmax(Q_table[observation,:])
 
         for t in range(5000):
-            #env.render()
-            #print(observation)
+            env.render()
+            print(observation)
 
 
 
@@ -64,7 +63,7 @@ seed):
 
                 new_action = np.argmax(Q_table[new_observation,:])
 
-            Q_table[observation,action]+=alpha*(reward+gamma*Q_table[new_observation,new_action]-Q_table[observation,action])
+            Q_table[observation,action]+=alpha*(reward+gamma*np.max(Q_table[new_observation,:])-Q_table[observation,action])
 
             observation=new_observation
             action=new_action
@@ -75,19 +74,19 @@ seed):
 
 
 
-    print(Q_table)
-    def map_to_action(action_int):
-        if action_int==0:
-            return '<'
-        elif action_int==1:
-            return 'v'
-        elif action_int==2:
-            return '>'
-        elif action_int==3:
-            return '^'
+
+
+
 
     optim=np.argmax(Q_table,axis=1)
-    print(','.join([map_to_action(x) for x in optim]))
+    print('Q(462,4)',Q_table[462,4])
+    print('Q(398,3)',Q_table[398,3])
+    print('Q(253,0)',Q_table[253,0])
+    print('Q(377,1)',Q_table[377,1])
+    print('Q(83,5)',Q_table[83,5])
+
+
+    #print(','.join([map_to_action(x) for x in optim]))
     # plt.figure(figsize=(15,8))
     # plt.plot(episode_rewards)
     # plt.title('Total reward for each episode')
@@ -97,12 +96,8 @@ seed):
     #
 
     env.close()
+    return Q_table
 
 #sarsa_agent('SFFFHFFFFFFFFFFG',1.0,0.25,0.29,14697,741684)
 #sarsa_agent('SFFFFHFFFFFFFFFFFFFFFFFFG',0.91,0.12,0.13,42271,983459)
-sarsa_agent(amap='SFFG',
-gamma=0.94,
-alpha=0.23,
-epsilon=0.2,
-n_episodes=45890,
-seed=722060)
+Q=sarsa_agent(gamma=0.9,alpha=0.2,epsilon=0.4,n_episodes=10,seed=722060)
