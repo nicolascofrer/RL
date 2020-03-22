@@ -6,4 +6,6 @@ fightOccurred = np.array([0, 1, 0, 0, 0, 1, 0])
 print(atEstabblishment.shape)
 N_patrons=atEstabblishment.shape[1]
 
-H=[p]
+H=['P','I']
+
+print(list(it.product(H,repeat=2)))
