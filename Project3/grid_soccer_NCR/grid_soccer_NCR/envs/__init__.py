@@ -1,0 +1,1 @@
+from gym_soccer.envs.grid_soccer_NCR import grid_soccer_NCR
