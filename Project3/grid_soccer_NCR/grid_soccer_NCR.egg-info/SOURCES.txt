@@ -1,0 +1,7 @@
+README.md
+setup.py
+grid_soccer_NCR.egg-info/PKG-INFO
+grid_soccer_NCR.egg-info/SOURCES.txt
+grid_soccer_NCR.egg-info/dependency_links.txt
+grid_soccer_NCR.egg-info/requires.txt
+grid_soccer_NCR.egg-info/top_level.txt

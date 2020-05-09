@@ -1,159 +1,118 @@
-import os, subprocess, time, signal
+#import os, subprocess, time, signal
 import gym
-from gym import error, spaces
-from gym import utils
-from gym.utils import seeding
-
-# try:
-#     import hfo_py
-# except ImportError as e:
-#     raise error.DependencyNotInstalled("{}. (HINT: you can install HFO dependencies with 'pip install gym[soccer].)'".format(e))
-
-import logging
-logger = logging.getLogger(__name__)
+from gym import spaces
+import numpy as np
+#from gym import error, spaces
+#from gym import utils
+#from gym.utils import seeding
 
 class grid_soccer_NCR(gym.Env):
+    #NC: player A is player 0, player B is player 1
     metadata = {'render.modes': ['human']}
 
     def __init__(self):
-        self.viewer = None
-        self.server_process = None
-        self.server_port = None
-        # self.hfo_path = hfo_py.get_hfo_path()
-        self._configure_environment()
-        # self.env = hfo_py.HFOEnvironment()
-        # self.env.connectToServer(config_dir=hfo_py.get_config_path())
-        self.observation_space = spaces.Box(low=-1, high=1,
-                                            shape=(self.env.getStateSize()))
-        # Action space omits the Tackle/Catch actions, which are useful on defense
-        self.action_space = spaces.Tuple((spaces.Discrete(3),
-                                          spaces.Box(low=0, high=100, shape=1),
-                                          spaces.Box(low=-180, high=180, shape=1),
-                                          spaces.Box(low=-180, high=180, shape=1),
-                                          spaces.Box(low=0, high=100, shape=1),
-                                          spaces.Box(low=-180, high=180, shape=1)))
-        self.status = hfo_py.IN_GAME
 
-    def __del__(self):
-        self.env.act(hfo_py.QUIT)
-        self.env.step()
-        os.kill(self.server_process.pid, signal.SIGINT)
-        if self.viewer is not None:
-            os.kill(self.viewer.pid, signal.SIGKILL)
 
-    def _configure_environment(self):
-        """
-        Provides a chance for subclasses to override this method and supply
-        a different server configuration. By default, we initialize one
-        offense agent against no defenders.
-        """
-        self._start_hfo_server()
+        self.lastaction = None
+        #NCR: action for P0 and action for P1
+        self.action_space = spaces.Tuple((spaces.Discrete(5), spaces.Discrete(5)))
+        #NCR: position of player 0, player 1 and who has the ball
+        self.observation_space = spaces.Tuple((spaces.Discrete(8), spaces.Discrete(8),spaces.Discrete(2)))
+        #NCR: initial state is random
+        pos_0=spaces.Discrete(8).sample()
+        pos_1=spaces.Discrete(8).sample()
+        while pos_0==pos_1 or pos_0==0 or pos_0==4 or pos_0==3 or pos_0==7 or pos_1==0 or pos_1==4 or pos_1==3 or pos_1==7:
+            pos_1=spaces.Discrete(8).sample()
+            pos_0=spaces.Discrete(8).sample()
 
-    def _start_hfo_server(self, frames_per_trial=500,
-                          untouched_time=100, offense_agents=1,
-                          defense_agents=0, offense_npcs=0,
-                          defense_npcs=0, sync_mode=True, port=6000,
-                          offense_on_ball=0, fullstate=True, seed=-1,
-                          ball_x_min=0.0, ball_x_max=0.2,
-                          verbose=False, log_game=False,
-                          log_dir="log"):
-        """
-        Starts the Half-Field-Offense server.
-        frames_per_trial: Episodes end after this many steps.
-        untouched_time: Episodes end if the ball is untouched for this many steps.
-        offense_agents: Number of user-controlled offensive players.
-        defense_agents: Number of user-controlled defenders.
-        offense_npcs: Number of offensive bots.
-        defense_npcs: Number of defense bots.
-        sync_mode: Disabling sync mode runs server in real time (SLOW!).
-        port: Port to start the server on.
-        offense_on_ball: Player to give the ball to at beginning of episode.
-        fullstate: Enable noise-free perception.
-        seed: Seed the starting positions of the players and ball.
-        ball_x_[min/max]: Initialize the ball this far downfield: [0,1]
-        verbose: Verbose server messages.
-        log_game: Enable game logging. Logs can be used for replay + visualization.
-        log_dir: Directory to place game logs (*.rcg).
-        """
-        self.server_port = port
-        cmd = self.hfo_path + \
-              " --headless --frames-per-trial %i --untouched-time %i --offense-agents %i"\
-              " --defense-agents %i --offense-npcs %i --defense-npcs %i"\
-              " --port %i --offense-on-ball %i --seed %i --ball-x-min %f"\
-              " --ball-x-max %f --log-dir %s"\
-              % (frames_per_trial, untouched_time, offense_agents,
-                 defense_agents, offense_npcs, defense_npcs, port,
-                 offense_on_ball, seed, ball_x_min, ball_x_max,
-                 log_dir)
-        if not sync_mode: cmd += " --no-sync"
-        if fullstate:     cmd += " --fullstate"
-        if verbose:       cmd += " --verbose"
-        if not log_game:  cmd += " --no-logging"
-        print('Starting server with command: %s' % cmd)
-        self.server_process = subprocess.Popen(cmd.split(' '), shell=False)
-        time.sleep(10) # Wait for server to startup before connecting a player
+        self.s = (pos_0,pos_1,spaces.Discrete(2).sample())
+        self.done=False
 
-    def _start_viewer(self):
-        """
-        Starts the SoccerWindow visualizer. Note the viewer may also be
-        used with a *.rcg logfile to replay a game. See details at
-        https://github.com/LARG/HFO/blob/master/doc/manual.pdf.
-        """
-        cmd = hfo_py.get_viewer_path() +\
-              " --connect --port %d" % (self.server_port)
-        self.viewer = subprocess.Popen(cmd.split(' '), shell=False)
 
-    def _step(self, action):
-        self._take_action(action)
-        self.status = self.env.step()
-        reward = self._get_reward()
-        ob = self.env.getState()
-        episode_over = self.status != hfo_py.IN_GAME
-        return ob, reward, episode_over, {}
+    def reset(self):
+        #NCR: initial state is random
+        pos_0=spaces.Discrete(8).sample()
+        pos_1=spaces.Discrete(8).sample()
+        while pos_0==pos_1 or pos_0==0 or pos_0==4 or pos_0==3 or pos_0==7 or pos_1==0 or pos_1==4 or pos_1==3 or pos_1==7:
+            pos_1=spaces.Discrete(8).sample()
+            pos_0=spaces.Discrete(8).sample()
 
-    def _take_action(self, action):
-        """ Converts the action space into an HFO action. """
-        action_type = ACTION_LOOKUP[action[0]]
-        if action_type == hfo_py.DASH:
-            self.env.act(action_type, action[1], action[2])
-        elif action_type == hfo_py.TURN:
-            self.env.act(action_type, action[3])
-        elif action_type == hfo_py.KICK:
-            self.env.act(action_type, action[4], action[5])
-        else:
-            print('Unrecognized action %d' % action_type)
-            self.env.act(hfo_py.NOOP)
+        self.s = (pos_0,pos_1,spaces.Discrete(2).sample())
+        self.lastaction = None
+        self.done=False
 
-    def _get_reward(self):
-        """ Reward is given for scoring a goal. """
-        if self.status == hfo_py.GOAL:
+        #force initial state as example state in paper
+        self.s = (2,1,1)
+
+        return self.s
+
+    def action_mapper(self,a):
+        if a==0:
+            return -4
+        elif a==1:
             return 1
+        elif a==2:
+            return 4
+        elif a==3:
+            return -1
         else:
             return 0
 
-    def _reset(self):
-        """ Repeats NO-OP action until a new episode begins. """
-        while self.status == hfo_py.IN_GAME:
-            self.env.act(hfo_py.NOOP)
-            self.status = self.env.step()
-        while self.status != hfo_py.IN_GAME:
-            self.env.act(hfo_py.NOOP)
-            self.status = self.env.step()
-        return self.env.getState()
+    def step(self, a):
+        #NCR: new_observation, reward, done
 
-    def _render(self, mode='human', close=False):
-        """ Viewer only supports human mode currently. """
-        if close:
-            if self.viewer is not None:
-                os.kill(self.viewer.pid, signal.SIGKILL)
-        else:
-            if self.viewer is None:
-                self._start_viewer()
+        s0,s1,ball=self.s
+        #NCR: who plays first?
+        first_mover=np.random.randint(0,2)
 
-ACTION_LOOKUP = {
-    0 : hfo_py.DASH,
-    1 : hfo_py.TURN,
-    2 : hfo_py.KICK,
-    3 : hfo_py.TACKLE, # Used on defense to slide tackle the ball
-    4 : hfo_py.CATCH,  # Used only by goalie to catch the ball
-}
+
+        #print('a[0]',a[0])
+        #if first_mover==0:
+        new_pos0=s0+self.action_mapper(a[0])
+        new_pos1=s1+self.action_mapper(a[1])
+
+        #NC: check collisions
+        if new_pos0==new_pos1:
+            #NC: only first moves only if valid move
+            if first_mover==0 and new_pos0>=0 and new_pos0<=7:
+                s0=new_pos0
+                #NC: if ball is in second mover, change posesion
+                if ball==1: ball=0
+            elif new_pos1>=0 and new_pos1<=7:
+                s1=new_pos1
+                #NC: if ball is in second mover, change posesion
+                if ball==0: ball=1
+
+        else: #NC: no collision, if they are valid moves, then move
+            if new_pos0>=0 and new_pos0<=7:
+                s0=new_pos0
+            if new_pos1>=0 and new_pos1<=7:
+                s1=new_pos1
+
+        r=(0,0)
+
+        if (self.s[0]==3 or self.s[0]==7) and self.s[2]==0:
+
+            self.done=True
+            r=(100,-100)
+
+        if (self.s[0]==0 or self.s[0]==4) and self.s[2]==0:
+
+            self.done=True
+            r=(-100,100)
+
+        if (self.s[1]==0 or self.s[1]==4) and self.s[2]==1:
+
+            r=(-100,100)
+            self.done=True
+
+        if (self.s[1]==3 or self.s[1]==7) and self.s[2]==1:
+
+            r=(100,-100)
+            self.done=True
+
+        self.lastaction = a
+        self.s=(s0,s1,ball)
+        return (self.s, r, self.done)
+    def render(self):
+        pass
